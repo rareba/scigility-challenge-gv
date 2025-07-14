@@ -1,0 +1,15 @@
+.git
+.gitignore
+.dockerignore
+infra/
+tests/
+pycache/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.env
+.venv
+env/
+README.md
+azure-pipelines.yml

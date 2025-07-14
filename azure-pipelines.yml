@@ -1,0 +1,69 @@
+# Trigger the pipeline on pushes to the main branch
+trigger:
+- main
+
+# Define variables for reuse
+variables:
+  # Replace with your Azure details
+  azureServiceConnection: 'YourAzureServiceConnectionName' # Name of your Service Connection in Azure DevOps
+  azureResourceGroup: 'rg-scigilitybank-challenge'
+  azureContainerRegistry: 'scigilitybankacr.azurecr.io'
+  azureStorageAccount: 'scigilitybank-storage'
+  
+  # Pipeline-specific variables
+  imageRepository: 'bank-data-pipeline'
+  dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile'
+  tag: '$(Build.BuildId)'
+  pythonVersion: '3.9'
+
+# Use a standard Linux agent for builds
+pool:
+  vmImage: 'ubuntu-latest'
+
+stages:
+- stage: Test
+  displayName: 'Run Unit Tests'
+  jobs:
+  - job: TestJob
+    displayName: 'Testing'
+    steps:
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: $(pythonVersion)
+      displayName: 'Set up Python $(pythonVersion)'
+
+    - script: |
+        python -m venv env
+        source env/bin/activate
+        pip install -r requirements.txt
+      displayName: 'Install dependencies'
+
+    - script: |
+        source env/bin/activate
+        pytest tests/
+      displayName: 'Run pytest'
+
+- stage: Build
+  displayName: 'Build and Push Docker Image'
+  dependsOn: Test # This stage runs only if 'Test' succeeds
+  condition: succeeded()
+  jobs:
+  - job: BuildAndPushJob
+    displayName: 'Build and Push'
+    steps:
+    - task: Docker@2
+      displayName: 'Login to ACR'
+      inputs:
+        command: 'login'
+        containerRegistry: $(azureServiceConnection) # This uses the ACR details from the service connection
+
+    - task: Docker@2
+      displayName: 'Build and push the image to ACR'
+      inputs:
+        command: 'buildAndPush'
+        repository: $(imageRepository)
+        dockerfile: $(dockerfilePath)
+        containerRegistry: $(azureServiceConnection)
+        tags: |
+          $(tag)
+          latest
